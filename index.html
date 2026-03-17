@@ -244,6 +244,12 @@
         <input type="range" class="slider-track" id="opacity-slider" min="20" max="100" value="85" oninput="updateOpacity(this.value)">
         <span class="slider-val" id="opacity-val">85%</span>
       </div>
+      <!-- Voice speed control (only in voice mode) -->
+      <div class="voice-meter" id="voice-speed-row">
+        <span class="vm-label">SPD</span>
+        <input type="range" class="slider-track" id="voice-speed-slider" min="15" max="90" value="45" oninput="updateVoiceSpeed(this.value)">
+        <span class="slider-val" id="voice-speed-val">45</span>
+      </div>
       <!-- Voice level meter (only in voice mode) -->
       <div class="voice-meter" id="voice-meter">
         <span class="vm-label">MIC</span>
@@ -298,8 +304,8 @@
   let audioCtx=null,analyser=null,micSource=null;
   let voiceLevel=0,smoothSpeed=0;
   const VOICE_THRESHOLD=0.06; // below this = silence
-  const VOICE_MAX_SPEED=90;   // px/sec at loud speech
-  const VOICE_SMOOTHING=0.15; // how quickly speed adjusts
+  let voiceMaxSpeed=45;       // px/sec at loud speech (adjustable via slider)
+  const VOICE_SMOOTHING=0.10; // how quickly speed adjusts (lower = smoother)
 
   const $=id=>document.getElementById(id);
   const scriptInput=$('script-input');
@@ -311,9 +317,14 @@
     scrollMode=mode;
     $('mode-voice').classList.toggle('active',mode==='voice');
     $('mode-manual').classList.toggle('active',mode==='manual');
-    // Show/hide speed slider vs voice meter in camera
     $('speed-slider-row').style.display=mode==='manual'?'flex':'none';
     $('voice-meter').classList.toggle('show',mode==='voice');
+    $('voice-speed-row').classList.toggle('show',mode==='voice');
+  }
+
+  function updateVoiceSpeed(v){
+    voiceMaxSpeed=parseInt(v);
+    $('voice-speed-val').textContent=v;
   }
 
   // ─── Voice analysis ───
@@ -403,6 +414,7 @@
     // Show/hide controls based on mode
     $('speed-slider-row').style.display=scrollMode==='manual'?'flex':'none';
     $('voice-meter').classList.toggle('show',scrollMode==='voice');
+    $('voice-speed-row').classList.toggle('show',scrollMode==='voice');
     smoothSpeed=0;
     $('cam-screen').classList.add('active');
     await startCamera();
@@ -440,7 +452,7 @@
       // Voice-driven speed
       voiceLevel=getVoiceLevel();
       const targetSpeed=voiceLevel>VOICE_THRESHOLD?
-        ((voiceLevel-VOICE_THRESHOLD)/(1-VOICE_THRESHOLD))*VOICE_MAX_SPEED:0;
+        ((voiceLevel-VOICE_THRESHOLD)/(1-VOICE_THRESHOLD))*voiceMaxSpeed:0;
       smoothSpeed+=(targetSpeed-smoothSpeed)*VOICE_SMOOTHING;
       currentSpeed=Math.max(0,smoothSpeed);
 
