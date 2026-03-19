@@ -100,7 +100,7 @@
   .slider-label{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;min-width:30px}
   .slider-track{flex:1;-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:rgba(255,255,255,.15);outline:none}
   .slider-track::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:pointer}
-  .slider-val{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.5);min-width:28px;text-align:right}
+  .slider-val{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.5);min-width:38px;text-align:right}
   .main-controls{display:flex;align-items:center;justify-content:space-between}
   .c-col{display:flex;flex-direction:column;align-items:center;gap:3px}
   .c-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
@@ -196,7 +196,7 @@
   </div>
   <div class="settings">
     <div class="settings-row">
-      <div class="s-card"><div class="s-label">Speed</div><div class="s-val-row"><div><span class="s-num" id="speed-val">3</span><span class="s-unit"> /5</span></div><div class="s-btns"><button class="adj" onclick="adjSpeed(-1)">−</button><button class="adj" onclick="adjSpeed(1)">+</button></div></div></div>
+      <div class="s-card"><div class="s-label">Speed</div><div class="s-val-row"><div><span class="s-num" id="speed-val">3</span><span class="s-unit" id="speed-unit">×</span></div><div class="s-btns"><button class="adj" onclick="adjSpeed(-1)">−</button><button class="adj" onclick="adjSpeed(1)">+</button></div></div></div>
       <div class="s-card"><div class="s-label">Font</div><div class="s-val-row"><div><span class="s-num" id="font-val">28</span><span class="s-unit">px</span></div><div class="s-btns"><button class="adj" onclick="adjFont(-2)">−</button><button class="adj" onclick="adjFont(2)">+</button></div></div></div>
     </div>
     <!-- Scroll mode -->
@@ -231,7 +231,7 @@
     <div class="sliders-wrap">
       <div class="slider-row" id="speed-slider-row">
         <span class="slider-label">SPD</span>
-        <input type="range" class="slider-track" id="speed-slider" min="1" max="5" value="3" step="1" oninput="updateSpeedSlider(this.value)">
+        <input type="range" class="slider-track" id="speed-slider" min="0" max="7" value="5" step="1" oninput="updateSpeedSlider(this.value)">
         <span class="slider-val" id="speed-slider-val">3×</span>
       </div>
       <div class="slider-row">
@@ -290,7 +290,14 @@
 <div class="drawer-bg" id="drawer"><div class="drawer-backdrop" onclick="closeDrawer()"></div><div class="drawer-body"><div class="drawer-bar"></div><div class="drawer-title">Saved Scripts</div><div id="drawer-list"></div></div></div>
 
 <script>
-  let speed=3,fontSize=28,mirrored=false,useFront=true;
+  // Speed system: index-based with labels and px/sec values
+  // Index: 0      1     2      3    4    5    6    7
+  // Label: 0.25x  0.5x  0.75x  1x   2x   3x   4x   5x
+  const SPEED_LABELS = ['0.25','0.5','0.75','1','2','3','4','5'];
+  const SPEED_PX_SEC = [4, 8, 12, 16, 30, 48, 72, 105];
+  let speedIdx=5; // default 3x
+
+  let fontSize=28,mirrored=false,useFront=true;
   let textSize=50,textOpacity=85;
   let scrollMode='voice'; // 'voice' or 'manual'
   let isPlaying=false,isRecording=false;
@@ -303,14 +310,23 @@
   // Voice sync state
   let audioCtx=null,analyser=null,micSource=null;
   let voiceLevel=0,smoothSpeed=0;
-  const VOICE_THRESHOLD=0.06; // below this = silence
-  let voiceMaxSpeed=45;       // px/sec at loud speech (adjustable via slider)
-  const VOICE_SMOOTHING=0.10; // how quickly speed adjusts (lower = smoother)
+  const VOICE_THRESHOLD=0.06;
+  let voiceMaxSpeed=45;
+  const VOICE_SMOOTHING=0.10;
 
   const $=id=>document.getElementById(id);
   const scriptInput=$('script-input');
   function fmtTime(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
-  function pxSec(){return[16,30,48,72,105][speed-1]}
+  function pxSec(){return SPEED_PX_SEC[speedIdx]}
+  function speedLabel(){return SPEED_LABELS[speedIdx]+'×'}
+
+  // Update all speed displays
+  function syncSpeedUI(){
+    $('speed-val').textContent=SPEED_LABELS[speedIdx];
+    $('speed-unit').textContent='×';
+    $('speed-slider').value=speedIdx;
+    $('speed-slider-val').textContent=speedLabel();
+  }
 
   // ─── Scroll mode ───
   function setScrollMode(mode){
@@ -337,7 +353,6 @@
       analyser.smoothingTimeConstant=0.8;
       micSource=audioCtx.createMediaStreamSource(mediaStream);
       micSource.connect(analyser);
-      // Don't connect to destination — we don't want to play mic back
     }catch(e){console.error('Audio setup failed:',e)}
   }
 
@@ -345,7 +360,6 @@
     if(!analyser)return 0;
     const data=new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(data);
-    // Average of frequency bins (focus on speech range ~85-3000Hz)
     let sum=0,count=0;
     const binHz=audioCtx.sampleRate/analyser.fftSize;
     for(let i=0;i<data.length;i++){
@@ -383,13 +397,13 @@
   }
   function updateSize(v){textSize=parseInt(v);$('size-val').textContent=v+'%';applyOverlayLayout()}
   function updateOpacity(v){textOpacity=parseInt(v);$('opacity-val').textContent=v+'%';$('prompt-text').style.opacity=v/100}
-  function updateSpeedSlider(v){speed=parseInt(v);$('speed-slider-val').textContent=v+'×';$('speed-val').textContent=speed}
+  function updateSpeedSlider(v){speedIdx=parseInt(v);syncSpeedUI()}
 
   function goFullscreen(){const el=document.documentElement;if(el.requestFullscreen)el.requestFullscreen().catch(()=>{});else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();$('fs-prompt').classList.remove('show')}
   function showFsPrompt(){if(window.navigator.standalone)return;if(document.fullscreenElement||document.webkitFullscreenElement)return;$('fs-prompt').classList.add('show');setTimeout(()=>{$('fs-prompt').classList.remove('show')},5000)}
 
   scriptInput.addEventListener('input',()=>{const t=scriptInput.value.trim(),w=t?t.split(/\s+/).length:0;$('word-count').textContent=w+' word'+(w!==1?'s':'');$('read-time').textContent='~'+Math.ceil(w/150)+' min read';$('btn-go').disabled=w===0});
-  function adjSpeed(d){speed=Math.max(1,Math.min(5,speed+d));$('speed-val').textContent=speed;$('speed-slider').value=speed;$('speed-slider-val').textContent=speed+'×'}
+  function adjSpeed(d){speedIdx=Math.max(0,Math.min(SPEED_LABELS.length-1,speedIdx+d));syncSpeedUI()}
   function adjFont(d){fontSize=Math.max(16,Math.min(60,fontSize+d));$('font-val').textContent=fontSize}
   function toggleMirror(){mirrored=!mirrored;$('mirror-tog').classList.toggle('on',mirrored)}
   function toggleCam(){useFront=!useFront;$('cam-label').textContent=useFront?'Front Camera':'Back Camera';if(mediaStream)startCamera()}
@@ -416,6 +430,8 @@
     $('voice-meter').classList.toggle('show',scrollMode==='voice');
     $('voice-speed-row').classList.toggle('show',scrollMode==='voice');
     smoothSpeed=0;
+    // Sync slider to current speed
+    syncSpeedUI();
     $('cam-screen').classList.add('active');
     await startCamera();
     requestAnimationFrame(()=>{applyOverlayLayout();setupPromptPadding()});
@@ -449,14 +465,12 @@
 
     let currentSpeed;
     if(scrollMode==='voice'){
-      // Voice-driven speed
       voiceLevel=getVoiceLevel();
       const targetSpeed=voiceLevel>VOICE_THRESHOLD?
         ((voiceLevel-VOICE_THRESHOLD)/(1-VOICE_THRESHOLD))*voiceMaxSpeed:0;
       smoothSpeed+=(targetSpeed-smoothSpeed)*VOICE_SMOOTHING;
       currentSpeed=Math.max(0,smoothSpeed);
 
-      // Update voice meter UI
       const pct=Math.min(100,voiceLevel*250);
       $('vm-bar').style.width=pct+'%';
       $('vm-bar').style.background=voiceLevel>VOICE_THRESHOLD?'var(--accent)':'rgba(255,255,255,.2)';
@@ -512,8 +526,9 @@
   let wl=null;async function reqWL(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch{}}function relWL(){if(wl){wl.release();wl=null}}
   window.addEventListener('resize',()=>{if($('cam-screen').classList.contains('active')){applyOverlayLayout();setupPromptPadding()}});
 
-  // Init scroll mode UI
+  // Init scroll mode UI and speed display
   setScrollMode('voice');
+  syncSpeedUI();
 </script>
 </body>
 </html>
