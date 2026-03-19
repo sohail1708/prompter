@@ -316,7 +316,12 @@
 
   const $=id=>document.getElementById(id);
   const scriptInput=$('script-input');
-  function fmtTime(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+  function fmtTime(s){
+    s=Math.max(0,Math.floor(s));
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    if(h>0)return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+    return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+  }
   function pxSec(){return SPEED_PX_SEC[speedIdx]}
   function speedLabel(){return SPEED_LABELS[speedIdx]+'×'}
 
@@ -504,10 +509,12 @@
     mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data)};
     mediaRecorder.onstop=showPreview;mediaRecorder.start(1000);
     isRecording=true;$('rec-btn').classList.add('recording');$('rec-badge').classList.add('on');
-    recSec=0;if(!isPlaying)togglePlay();
-    timerInt=setInterval(()=>{recSec++;$('timer').textContent=fmtTime(recSec)},1000);
+    recSec=0;$('timer').textContent=fmtTime(0);
+    if(!isPlaying)togglePlay();
+    if(timerInt)clearInterval(timerInt);
+    timerInt=setInterval(()=>{if(isRecording){recSec++;$('timer').textContent=fmtTime(recSec)}},1000);
   }
-  function stopRec(){if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();isRecording=false;$('rec-btn').classList.remove('recording');$('rec-badge').classList.remove('on');clearInterval(timerInt)}
+  function stopRec(){if(timerInt){clearInterval(timerInt);timerInt=null}if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();isRecording=false;$('rec-btn').classList.remove('recording');$('rec-badge').classList.remove('on')}
 
   function showPreview(){if(!recChunks.length)return;if(lastBlobUrl)URL.revokeObjectURL(lastBlobUrl);lastBlob=new Blob(recChunks,{type:recChunks[0].type||'video/mp4'});lastBlobUrl=URL.createObjectURL(lastBlob);$('preview-video').src=lastBlobUrl;$('preview-video').load();$('preview-duration').textContent=fmtTime(recSec);$('preview-screen').classList.add('active');$('preview-hint').style.display='block';setTimeout(()=>{$('preview-hint').style.display='none'},6000)}
   function discardPreview(){$('preview-video').pause();$('preview-video').removeAttribute('src');if(lastBlobUrl){URL.revokeObjectURL(lastBlobUrl);lastBlobUrl=null}lastBlob=null;$('preview-screen').classList.remove('active');showToast('Take discarded')}
